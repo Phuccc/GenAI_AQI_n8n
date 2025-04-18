@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Bản đồ Ô nhiễm</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+      integrity="sha512-xodZBNTC5n17Xt2atTPvknvHgVsZtetv7yzm+dlxDggGyJyHXUGF//vCVrVLidwEqPQN5I+WAYuxKtIheERcA=="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+      integrity="sha512-XQgpYcz1GZyEd7uaFJJFySgCYDGm8sh+BjnqWqPTC+dLGIJJ/PNyrHMEjvQm1JpoaWj1UyfYk5twykYwu8vVyQ=="
+      crossorigin=""
+    ></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background-color: #f4f7fa;
+        height: 100vh;
+        display: flex;
+      }
+
+      .container {
+        display: flex;
+        width: 100%;
+        height: 100vh;
+      }
+
+      .chat-panel {
+        width: 40%;
+        background-color: #ffffff;
+        padding: 20px;
+        border-right: 1px solid #ddd;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .chat-panel h1 {
+        margin-bottom: 10px; /* Giảm margin để có thêm không gian cho reply */
+        font-size: 24px;
+        color: #333;
+      }
+
+      form {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      label {
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      pre {
+        background-color: #f0f0f0;
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 13px;
+        margin-bottom: 10px;
+        overflow-x: auto;
+      }
+
+      textarea {
+        flex: 1;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        resize: vertical;
+        margin-bottom: 10px;
+        background-color: #fcfcfc;
+      }
+
+      button {
+        padding: 12px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #0056b3;
+      }
+
+      .error-message {
+        color: red;
+        margin-top: 10px;
+      }
+
+      .chatbot-reply {
+        margin-top: 15px; /* Thêm khoảng cách phía trên reply */
+        padding: 10px;
+        background-color: #e9ecef;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #333;
+        word-break: break-word; /* Tránh tràn chữ */
+      }
+
+      .chatbot-reply b {
+        font-weight: bold;
+        margin-right: 5px;
+      }
+
+      .map-panel {
+        width: 60%;
+        position: relative;
+        background-color: #eef1f4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #map-container {
+        width: 100%;
+        height: 100%;
+        border-left: 1px solid #ccc;
+      }
+
+      .placeholder {
+        text-align: center;
+        color: #999;
+      }
+
+      .placeholder img {
+        max-width: 300px;
+        opacity: 0.3;
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          flex-direction: column;
+        }
+        .chat-panel,
+        .map-panel {
+          width: 100%;
+          height: 50%;
+        }
+      }
+      .chat-messages-container {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding-bottom: 10px; /* Để có khoảng trống cho tin nhắn mới nhất */
+      }
+
+      .message {
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+        clear: both; /* Đảm bảo các tin nhắn không bị float chồng lên nhau */
+      }
+
+      .user-message {
+        background-color: #e2f7cb;
+        align-self: flex-end; /* Đẩy tin nhắn người dùng sang phải */
+        float: right;
+      }
+
+      .bot-message {
+        background-color: #f0f0f0;
+        align-self: flex-start; /* Đẩy tin nhắn bot sang trái */
+        float: left;
+      }
+
+      .user-label,
+      .bot-label {
+        font-size: 0.8em;
+        color: #777;
+        margin-bottom: 3px;
+        display: block;
+      }
+
+      .user-label {
+        text-align: right;
+      }
+
+      .input-area {
+        display: flex;
+        margin-top: 10px;
+      }
+
+      .input-area textarea {
+        flex-grow: 1;
+        resize: none; /* Ngăn người dùng kéo thay đổi kích thước */
+        border-radius: 8px 0 0 8px;
+        border-right: none;
+        margin-bottom: 0; /* Loại bỏ margin bottom mặc định */
+      }
+
+      .input-area button {
+        border-radius: 0 8px 8px 0;
+        border-left: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="chat-panel">
+        <h1>💬 Trợ lý Ô nhiễm</h1>
+        <div class="chat-messages-container">
+          {% if conversation %} {% for message in conversation %}
+          <div
+            class="message {% if message.sender == 'user' %}user-message{% else %}bot-message{% endif %}"
+          >
+            <span
+              class="{% if message.sender == 'user' %}user-label{% else %}bot-label{% endif %}"
+            >
+              {% if message.sender == 'user' %}Bạn{% else %}Bot{% endif %}
+            </span>
+            {{ message.text | safe }}
+          </div>
+          {% endfor %} {% endif %}
+        </div>
+        <form method="POST">
+          <div class="input-area">
+            <textarea
+              id="pollution_data"
+              name="pollution_data"
+              placeholder="Nhập dữ liệu ô nhiễm dạng JSON hoặc câu hỏi..."
+              rows="3"
+            ></textarea>
+            <button type="submit">Gửi</button>
+          </div>
+          {% if error_message %}
+          <p class="error-message">{{ error_message }}</p>
+          {% endif %}
+        </form>
+      </div>
+
+      <div class="map-panel">
+        {% if map_html %}
+        <div id="map-container">{{ map_html | safe }}</div>
+        {% else %}
+        <div class="placeholder">
+          <img
+            src="https://cdn-icons-png.flaticon.com/512/854/854878.png"
+            alt="Waiting for map..."
+          />
+          <p>Chưa có bản đồ. Vui lòng nhập dữ liệu bên trái 👈</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </body>
+</html>
